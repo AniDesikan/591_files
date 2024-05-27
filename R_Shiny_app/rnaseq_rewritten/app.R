@@ -60,9 +60,10 @@ ui <- fluidPage(
        sidebarPanel(
          fileInput("samples_file", "Choose a CSV file for sample information exploration:"),
          
-         selectInput("numeric_columns", "Select Numeric Column", choices =c(
-           "age_of_death","AvgSpotLen","mrna.seq_reads","pmi","RIN", "age_of_onset", "cag", "duration", "h.v_cortical_score", "h.v_striatal_score", "vonsattel_grade")
-         ), # TODO: Make these choices not hardcoded, have the same UI_output as below 
+         #selectInput("numeric_columns", "Select Numeric Column", choices =c(
+         #   "age_of_death","AvgSpotLen","mrna.seq_reads","pmi","RIN", "age_of_onset", "cag", "duration", "h.v_cortical_score", "h.v_striatal_score", "vonsattel_grade")
+         #), # TODO: Make these choices not hardcoded, have the same UI_output as below 
+         uiOutput("numeric_columns"),
          
          uiOutput("samples_columns"), # dropdown menu that shows all of the columns in the csv
          
@@ -70,7 +71,7 @@ ui <- fluidPage(
            text = "Submit",
            icon = icon("car-crash"),
            width = "100%"
-         ) # Submit button
+         )
          
         ),
       ####################################################
@@ -144,6 +145,7 @@ ui <- fluidPage(
            tabPanel("Clustered Heatmap", plotOutput("counts_heatmap")),
            
            # Beeswarm of which components are most important from a PCA
+           # TODO: Add PCA as well as beeswarm
            tabPanel("PCA", sliderInput("num_components", "Choose number of components for PCA",min = 0, max = 69, value = 2 ),
                     plotOutput("counts_pca"))
          )
@@ -180,7 +182,7 @@ ui <- fluidPage(
            inputId = "deseq",
            label = "Run Deseq2 on the filtered counts data from previous data?",
            choices = c("yes", "no"),
-           selected = "no"
+           selected = "yes"
          ),
          
          # The following are choices for the volcano plots
@@ -358,86 +360,115 @@ server <- function(input, output) {
   # SAMPLES FUNCTIONS
   ####################################################
   
-  # Functions used to create the outputs for the Samples tab
-  
-  # PURPOSE: Function to read the file input into "samples_file" variable of input.
-  # INPUTS: samples_file is the variable in the frontend that accepts a csv
-  # REACTIVE: As soon as a csv file is inserted into the variable, it is automatically read
-  
+  # Function to read the file input into "samples_file" variable of input
   load_samples_data <- reactive({
-    new_file <- fread(input$samples_file$datapath)
-    return(as.tibble(new_file))
+    req(input$samples_file)
+    
+    # Try reading the file
+    new_file <- tryCatch({
+      fread(input$samples_file$datapath)
+    }, error = function(e) {
+      NULL
+    })
+    
+    # Return the data as a tibble, or NULL if an error occurred
+    if (is.null(new_file)) {
+      return(NULL)
+    } else {
+      return(as.tibble(new_file))
+    }
   })
   
-  
-  # PURPOSE: This function is used for the "select columns" tab of the samples tab. 
-  # Selects columns from the full 
-  # REACTIVE:
-  # TODO: Not currently reactive, only changes when the submit button is clicked
-  # Possibly because it references the load_samples_data()? Try to put load_samples_data() into 
-  
+  # Function to filter the data for the input sample columns
   column_filter <- reactive({
     selected_data <- load_samples_data() %>%
       select(input$samples_columns)
     return(selected_data)
   })
   
-  # Creates the summary for the samples tab
-  samples_summary <-
-    function(dataf) {
-      newdf <- tibble(
-        Columns = colnames(dataf),
-        type = sapply(dataf, typeof),
-        most_common = sapply(dataf, function(col) {
-          if (typeof(col) %in% c("character", "factor")) {
-            names(table(col))[which.max(table(col))]
-          } else {
-            mean(na.omit(col))
-          }
-        })
-      )
-      return(newdf)
-    }
-  
+  # Function to create the summary for the samples tab
+  samples_summary <- function(dataf) {
+    newdf <- tibble(
+      Columns = colnames(dataf),
+      type = sapply(dataf, typeof),
+      most_common = sapply(dataf, function(col) {
+        if (typeof(col) %in% c("character", "factor")) {
+          names(table(col))[which.max(table(col))]
+        } else {
+          mean(na.omit(col))
+        }
+      })
+    )
+    return(newdf)
+  }
   
   ####################################################
   # SAMPLES OUTPUTS
   ####################################################
   
-  # Outputs for the 
-  
+  # Display the columns of the dataframe in the dropdown so the user can select them
   output$samples_columns <- renderUI({
-    # Get the column names of the data frame
-    choices <- colnames(load_samples_data())
-    # Create a selectInput with dynamically set choices
+    data <- load_samples_data()
+    if (is.null(data)) {
+      return(NULL)
+    }
+    choices <- colnames(data)
     selectInput("samples_columns", "Select Columns", choices, multiple = TRUE)
   })
   
-  
-  
-  output$samples_summary <- renderTable(
-    samples_summary(load_samples_data())
-  ) 
-  
-  # Load the samples summary into an output object for the UI
-  output$samples_table <- renderDT(
-    datatable(load_samples_data(), options = list(ordering = TRUE))
-  )
-  
-  # For the radio buttons to choose which things to plot
-  output$filtered_samples_table <- renderDT({
-    # Subset the data based on the selected columns
-    # Render the table
-    datatable(column_filter(), options = list(dom = 't',pageLength = nrow(column_filter())))
+  # Display the numeric columns of the dataframe in the dropdown
+  output$numeric_columns <- renderUI({
+    data <- load_samples_data()
+    if (is.null(data)) {
+      return(NULL)
+    }
+    numeric_cols <- colnames(data)[sapply(data, is.numeric)]
+    selectInput("numeric_columns", "Select Numeric Columns", numeric_cols, multiple = TRUE)
   })
   
-  
-  # Render the plot or display for the selected numeric column
-  output$selected_plot <- renderPlot({
-    # Example: Create a histogram for the selected numeric column
+  # Render the summary table
+  output$samples_summary <- renderTable({
     data <- load_samples_data()
+    if (is.null(data)) {
+      return(NULL)
+    }
+    samples_summary(data)
+  })
+  
+  # Render the samples table
+  output$samples_table <- renderDT({
+    data <- load_samples_data()
+    if (is.null(data)) {
+      return(NULL)
+    }
+    datatable(data, options = list(
+      pageLength = 10,       # Number of rows to display per page
+      lengthMenu = c(10, 25, 50, 100), # Dropdown menu for number of rows to display
+      ordering = TRUE
+    ))
+  })
+  
+  # Render the filtered samples table based on selected columns
+  output$filtered_samples_table <- renderDT({
+    data <- load_samples_data()
+    if (is.null(data) || is.null(input$samples_columns)) {
+      return(NULL)
+    }
+    selected_data <- data %>% select(input$samples_columns)
+    datatable(column_filter(), options = list(
+      pageLength = 10,       # Number of rows to display per page
+      lengthMenu = c(10, 25, 50, 100), # Dropdown menu for number of rows to display
+      ordering = TRUE
+    ))
+  })
+  
+  # Render the plot for the selected numeric column
+  output$selected_plot <- renderPlot({
+    data <- load_samples_data()
+    if (is.null(data) || is.null(input$numeric_columns)) {
+      return(NULL)
+    }
     vector <- input$numeric_columns
-    # print(vector)
     hist(data[[vector]], main = paste("Histogram of", vector))
   })
   
@@ -446,9 +477,22 @@ server <- function(input, output) {
   # COUNTS FUNCTIONS
   ####################################################
   
-  output$counts <- renderDT(
-    datatable(load_counts_data(), options = list(ordering = TRUE))
-  )
+  load_counts_data <- reactive({
+    # Read the data using read.table
+    new_file <- fread(input$counts_file$datapath)
+    return(as.tibble(new_file))
+  })
+  
+  counts_filtering <- function(variance, zero) {
+    dataf <- load_counts_data()
+    
+    row_variances <- rowVars(as.matrix(dataf[,-1]), na.rm = TRUE)
+    
+    # Filter the data based on variance threshold
+    filtered_counts <- dplyr::filter(dataf, row_variances >= variance)
+    filtered_counts <- dplyr::filter(filtered_counts, rowSums(filtered_counts == 0) >= zero)
+    return(filtered_counts)
+  }
   
   # Make a table that summarizes the effect of filtering
   # Return a table with the number of samples, number of genes, number and % of genes passing filter and not passing filter
@@ -468,10 +512,6 @@ server <- function(input, output) {
     # Return the summary table
     return(table)
   }
-  
-  output$counts_filtering_table <- renderTable({
-    counts_filtering_table(load_counts_data(), input$counts_variance, input$counts_non_zero)
-  })
   
   #Make diagnostic scatter plots
   # Genes passing in a darker color, genes not passing in a lighter color
@@ -505,27 +545,368 @@ server <- function(input, output) {
     return(list(plot_variance, plot_zeros))
   }
   
+  #Make clustered Heatmap
+  # enable log transforming counts
+  # make sure there's a legend with color bar
+  counts_heatmap <-
+    function(variance, non_zero) {
+      filtered_counts <- counts_filtering(variance, non_zero)
+      filtered_counts <- filtered_counts[,-1]
+      
+      # print(dim(filtered_counts))
+      # print(head(filtered_counts))
+      log_transformed_counts <- log2(filtered_counts + 1)
+      
+      clustered_data <- as.matrix(log_transformed_counts)
+      row_order <- order(rowMeans(clustered_data, na.rm = TRUE))
+      col_order <- order(colMeans(clustered_data, na.rm = TRUE))
+      
+      # Create the clustered heatmap
+      heatmap(
+        clustered_data[row_order, col_order],
+        Colv = FALSE,
+        Rowv = FALSE,
+        scale = "row",  # Scale rows (genes)
+        col = colorRampPalette(c("white", "blue"))(100),
+        margins = c(5, 10),
+        xlab = "Samples",
+        ylab = "Genes"
+      )
+      
+      
+      # Return the heatmap object
+      return(heatmap)
+    }
+  
+  counts_pca <-
+    function(variance, non_zero, num_components) {
+      filtered_counts <- counts_filtering(variance, non_zero)
+      df <- as.data.frame(filtered_counts[, -1])  # Assuming the first column is sample/gene names
+      
+      # Transpose the data for PCA
+      expr_mat <- prcomp(t(df), center = TRUE)
+      num <- num_components
+      # Create a data frame with PC1 and PC2 scores
+      # pca_data <- data.frame(PC1 = expr_mat$x[, 1], PC2 = expr_mat$x[, 2])
+      pca_data <- as.data.frame(expr_mat$x[, 1:num])
+      
+      # Create a PCA object without centering and scaling
+      pca <- prcomp(
+        pca_data,
+        center = FALSE,
+        scale = FALSE
+      )
+      
+      # Create a summary table
+      summary_table <- summary(pca)
+      
+      component_colors <- rainbow(num_components)
+      # Create a scatter plot
+      # final <- ggplot(pca_data, aes(x = PC1, y = PC2,)) +
+      #   geom_point() +
+      #   labs(
+      #     title = "PCA Scatter Plot",
+      #     x = paste("PC1 (", round(summary_table$sdev[1] / sum(summary_table$sdev) * 100, 2), "%)"),
+      #     y = paste("PC2 (", round(summary_table$sdev[2] / sum(summary_table$sdev) * 100, 2), "%)")
+      #   )+
+      #   theme_minimal()
+      
+      # final <- ggplot(NULL, aes(x = 1:length(summary_table$sdev), y = summary_table$sdev^2 / sum(summary_table$sdev^2))) +
+      #   geom_bar(stat = "identity", fill = "skyblue", width = 0.7) +
+      #   labs(
+      #     title = "Scree Plot",
+      #     x = "Principal Components",
+      #     y = "Proportion of Variance"
+      #   ) +
+      #   theme_minimal()
+      
+      final <- beeswarm(pca_data, pch = 16, col = component_colors, main = "Beeswarm Plot of Principal Components")
+      
+      legend("bottomright", legend = paste("PC", 1:num_components, ": ", round(summary(expr_mat)$sdev[1:num_components] / sum(summary(expr_mat)$sdev) * 100, 2), "%"), col = component_colors, pch = 16)
+      
+      return(final)
+    }
+  
+  ####################################################
+  # COUNTS OUTPUTS
+  ####################################################
+  
+  output$counts <- renderDT(
+    datatable(load_counts_data(), options = list(ordering = TRUE))
+  )
+  
+  output$counts_filtering_table <- renderTable({
+    req(input$counts_file)
+    data <- load_counts_data()
+    counts_filtering_table(data, input$counts_variance, input$counts_non_zero)
+  })
+  
   # Display the plots
   output$plot_variance <- renderPlot({
+    req(input$counts_file)
     plots <- counts_scatter_plot(input$counts_variance, input$counts_non_zero)
     print(plots[[1]])
   })
   
   output$plot_zeros <- renderPlot({
+    req(input$counts_file)
     plots <- counts_scatter_plot(input$counts_variance, input$counts_non_zero)
     print(plots[[2]])
   })
   
+  output$counts_heatmap<- renderPlot({
+    req(input$counts_file)
+    counts_heatmap(input$counts_variance, input$counts_non_zero)
+  })
+  
+  output$counts_pca<- renderPlot({
+    req(input$counts_file)
+    counts_pca(input$counts_variance, input$counts_non_zero, input$num_components)
+  })
   
   
+  ####################################################
+  # DE FUNCTIONS
+  ####################################################
+  
+  load_DE_data <- reactive({
+    # Read the data using read.table
+    if(input$deseq == "yes"){
+      new_file <- run_deseq(counts_filtering(input$counts_variance, input$counts_non_zero))
+    }else{
+      new_file <- fread(input$DE_file$datapath)
+    }
+    return(as.tibble(new_file))
+  })
   
   
+  run_deseq <- function(counts_data) {
+    print("working")
+    
+    # turn the first column of the counts matrix into rownames
+    counts_row_names <- counts_data[[1]]
+    print(counts_data)
+    counts_data <- as.data.frame(counts_data[,-1])
+    print(counts_data)
+    print(length(counts_row_names))
+    print(nrow(counts_data))
+    rownames(counts_data) <- counts_row_names
+    
+    # Make sure that the ids in the metadata match the ids in the counts data
+    # Load and process the total_design
+    total_design <- as.data.frame(column_filter())
+    sample_ids <- colnames(counts_data) 
+    print(sample_ids)
+    filtered_design <- total_design[total_design[[1]] %in% sample_ids, ]
+    
+    # Make the ids of the metadata the rownames
+    metadata_row_names <- filtered_design[, 1]
+    metadata_col_names<- colnames(filtered_design)[-1]
+    filtered_design <- as.data.frame(filtered_design[, -1])
+    colnames(filtered_design) <- metadata_col_names
+    rownames(filtered_design) <- metadata_row_names
+    print(filtered_design)
+    
+    # Print the row names
+    print(rownames(filtered_design))
+    print(colnames(counts_data))
+    
+    # Check if counts_data has row names and column names
+    if (is.null(rownames(counts_data))) {
+      stop("countData must have row names (gene identifiers)")
+    }
+    
+    if (is.null(colnames(counts_data))) {
+      stop("countData must have column names (sample identifiers)")
+    }
+    
+    # Ensure the sample names in counts_data match row names in total_design
+    #if (!all(colnames(counts_data) %in% rownames(total_design))) {
+    #  stop("Column names in counts matrix must match sample_id column in metadata!")
+    #}
+    
+    design_formula <- as.formula(paste("~", metadata_col_names))
+    print(design_formula)
+    # Create DESeqDataSet
+    dds <- DESeqDataSetFromMatrix(countData = counts_data,
+                                  colData = filtered_design,  # Sample information
+                                  design = design_formula)    # Design formula with all columns in total_design
+    
+    # Run DESeq2 analysis
+    dds <- DESeq(dds)
+    
+    # Get results
+    res <- results(dds)
+    print(res)
+    res$Gene <- counts_row_names
+    res <- res[, c("Gene", setdiff(names(res), "Gene"))]
+    
+    return(res)
+  }
+  
+  #Volcano Plot Function
+  volcano_plot <-
+    function(dataf, x_name, y_name, slider, color1, color2) {
+      p <- ggplot(dataf, aes(x = !!sym(x_name),
+                             y = -log10(!!sym(y_name)))) +
+        geom_point(aes(color = !!sym(y_name) < 1 * 10 ^ (as.numeric(slider)))) +
+        theme_bw() +
+        scale_color_manual(values = c(color1, color2)) +
+        theme(legend.position = "bottom") +
+        labs(color = paste0(y_name, " < 1 Ã— 10^", slider))
+      return(p)
+    }
+  
+  draw_table <- function(dataf, slider) {
+    if (!"padj" %in% colnames(dataf)) {
+      stop("Column 'padj' not found in the data frame.")
+    }
+    new_table <- dplyr::filter(dataf, dataf$padj < 10^(slider))
+    new_table$padj <- prettyNum(new_table$padj, digits = 5)
+    return(new_table)
+  }
+  
+  ####################################################
+  # DE OUTPUTS
+  ####################################################
+  
+  output$DE_table <- renderDT(
+    datatable(load_DE_data(), options = list(ordering = TRUE))
+  )
+  
+  output$volcano <- renderPlot({
+    p <-volcano_plot(load_DE_data(),
+                     input$x_axis,
+                     input$y_axis,
+                     input$slider,
+                     input$base,
+                     input$highlight)
+    return(p)
+  }, height = 700)
+  
+  output$table <- renderDT(
+    datatable(draw_table(load_DE_data(),input$slider))
+  )
+  ####################################################
+  # EA FUNCTIONS
+  ####################################################
+  
+  load_EA_data <- reactive({
+    con <- gzfile(input$EA_file$datapath, "rt")
+    # Read the data using read.table
+    new_file <- read.table(con, header = TRUE, sep = "\t")
+    print(new_file)
+    return(as.tibble(new_file))
+  })
+  
+  # Get list of diff expressed genes
+  make_ranked_log2fc <- function(dataf) {
+    new_table <- mutate(dataf, rank = rank(log2FoldChange) )%>%
+      dplyr::arrange(rank) %>%
+      dplyr::select(symbol, log2FoldChange)%>%
+      dplyr::filter(is.finite(log2FoldChange))
+    new_vector <- pull(new_table, log2FoldChange, symbol)
+    return(new_vector)
+  }
+  
+  #Run FGSEA
+  run_fgsea <- reactive ({
+    rnk_list <- make_ranked_log2fc(load_EA_data())
+    c2_pathways <- gmtPathways("~/591_Final_Project/data/h.all.v2023.2.Hs.symbols.gmt")
+    
+    fgsea_results <- fgsea(c2_pathways, 
+                           rnk_list, 
+                           minSize=15, 
+                           maxSize=500) %>% 
+      as_tibble()
+    
+    return(fgsea_results)
+  })
+  
+  fgsea_filter <- reactive ({
+    ea_table <- run_fgsea
+    if(select == "positive"){
+      ea_table <- dplyr::filter(ea_table, NES > 0)
+    } 
+    if(select == "negative"){
+      ea_table <- dplyr::filter(ea_table, NES < 0)
+    } 
+    ea_table <- dplyr::filter(ea_table, padj < 10^(p_adj))
+    return(ea_table)
+  })
+  
+  EA_barplot <- function(fgsea_results, slider){
+    
+    top_pos <- fgsea_results %>% filter((padj) < 10^slider) %>% pull(pathway)
+    
+    subset <- fgsea_results %>% 
+      filter(pathway %in% c(top_pos)) %>%
+      mutate(pathway = factor(pathway)) %>%
+      mutate(plot_name = str_replace_all(pathway, '_', ' '))
+    
+    plot <- subset %>% 
+      mutate(plot_name = forcats::fct_reorder(factor(plot_name), NES)) %>%
+      ggplot() +
+      geom_bar(aes(x=plot_name, y=NES, fill = NES > 0), stat='identity', show.legend = FALSE) +
+      scale_fill_manual(values = c('TRUE' = 'red', 'FALSE' = 'blue')) + 
+      theme_minimal(base_size = 8) +
+      ggtitle('fgsea results for Hallmark MSigDB gene sets') +
+      ylab('Normalized Enrichment Score (NES)') +
+      xlab('') +
+      scale_x_discrete(labels = function(x) str_wrap(x, width = 80)) +
+      coord_flip()
+    return(plot)
+  }
+  
+  EA_Table <-
+    function(p_adj, select) {
+      ea_table <- run_fgsea()
+      if(select == "positive"){
+        ea_table <- dplyr::filter(ea_table, NES > 0)
+      } 
+      if(select == "negative"){
+        ea_table <- dplyr::filter(ea_table, NES < 0)
+      } 
+      ea_table <- dplyr::filter(ea_table, padj < 10^(p_adj))
+      return(ea_table)
+    }
+  
+  scatter_plot_data <- reactive({
+    ea_table <- run_fgsea()
+    
+    # Filter gene sets below p-value threshold
+    ea_table <- dplyr::filter(ea_table, padj < 10^(-input$EA_p_adj_plot))
+    
+    return(ea_table)
+  })
   
   
+  ####################################################
+  # EA OUTPUTS
+  ####################################################
+  
+  output$EA_barplot  <- renderPlot(
+    EA_barplot(run_fgsea(), input$EA_p_adj)
+  )
+  
+  output$EA_Table  <- renderDT(
+    datatable(EA_Table(input$EA_p_adj_table, input$EA_NES_select))
+  )
+  
+  output$EA_scatter_plot <- renderPlot({
+    scatter_data <- scatter_plot_data()
+    
+    # Create scatter plot using ggplot2
+    ggplot(scatter_data, aes(x = NES, y = -log10(padj), color = factor(padj < 10^(input$EA_p_adj_plot)))) +
+      geom_point(alpha = 0.7) +
+      scale_color_manual(values = c("TRUE" = "grey", "FALSE" = "blue")) +
+      labs(
+        title = "Scatter Plot of NES vs. -log10 Adjusted p-value",
+        x = "Normalized Enrichment Score (NES)",
+        y = "-log10 Adjusted p-value"
+      )
+  })
 }
-
-
-
 ###################################################
 #                 RUN APP                         #
 ###################################################
