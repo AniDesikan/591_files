@@ -12,6 +12,7 @@
 ######################
 
 library(shiny)
+library(bslib)
 library(DT)
 library(matrixStats)
 library(tidyverse)
@@ -21,6 +22,7 @@ library(fgsea)
 library(beeswarm)
 library(DESeq2)
 library(data.table)
+library(rlang)
 
 # Change this number in order to change the max upload size for files
 options(shiny.maxRequestSize = 200 * 1024^2)  # Set max upload size to 100 MB
@@ -82,20 +84,29 @@ ui <- fluidPage(
            
            # Table tab has a Dataframe output of the samples table given
            tabPanel("Table", 
-                    DTOutput("samples_table")),
+                    DTOutput("samples_table"),
+                    downloadButton("download_samples_csv", "Download CSV"),
+                    downloadButton("download_samples_xlsx", "Download Excel")),
            
            # Select columns gives the table with the columns that you selected 
            tabPanel("Select Columns", 
-                    DTOutput("filtered_samples_table")),
+                    DTOutput("filtered_samples_table"),
+                    downloadButton("download_filtered_samples_csv", "Download CSV"),
+                    downloadButton("download_filtered_samples_xlsx", "Download Excel")),
            
            # Summary tab has a summary of all the selected columns, their type (int, string, etc.) and most common entry
            tabPanel("Summary", 
-                    tableOutput("samples_summary")),
+                    tableOutput("samples_summary"),
+                    downloadButton("download_samples_summary_csv", "Download CSV"),
+                    downloadButton("download_samples_summary_xlsx", "Download Excel")),
            
            # Plots numeric column vs selected column
            # TODO: Currently the numeric columns are hardcoded so you can't select anything else
            tabPanel("Plots", 
-                    plotOutput("selected_plot"))
+                    plotOutput("selected_plot"),
+                    downloadButton("download_plot_jpeg", "Download JPEG"),
+                    downloadButton("download_plot_png", "Download PNG"),
+                    downloadButton("download_plot_svg", "Download SVG"))
          )
        )
     ),
@@ -136,18 +147,34 @@ ui <- fluidPage(
            
            # Shows the results of filtering from the sidebar
            # TODO: Show DTOutput of the filtered table underneath the counts filtering table
-           tabPanel("Filtering Effect", tableOutput("counts_filtering_table")),
+           tabPanel("Filtering Effect", tableOutput("counts_filtering_table"),
+                    downloadButton("download_counts_filtering_csv", "Download CSV"),
+                    downloadButton("download_counts_filtering_xlsx", "Download Excel")),
            
            # Shows how many samples actually pass the filters and where they are in terms of variance and # of zeros
-           tabPanel("Diagnostic Scatter Plots", plotOutput("plot_variance"), plotOutput("plot_zeros")),
+           tabPanel("Diagnostic Scatter Plots",
+                    plotOutput("plot_variance"),
+                    downloadButton("download_plot_variance_jpeg", "Download JPEG"),
+                    downloadButton("download_plot_variance_png", "Download PNG"),
+                    downloadButton("download_plot_variance_svg", "Download SVG"),
+                    plotOutput("plot_zeros"),
+                    downloadButton("download_plot_zeros_jpeg", "Download JPEG"),
+                    downloadButton("download_plot_zeros_png", "Download PNG"),
+                    downloadButton("download_plot_zeros_svg", "Download SVG")),
            
            # Shows Samples vs Genes heatmap
-           tabPanel("Clustered Heatmap", plotOutput("counts_heatmap")),
+           tabPanel("Clustered Heatmap", plotOutput("counts_heatmap"),
+                    downloadButton("download_heatmap_jpeg", "Download JPEG"),
+                    downloadButton("download_heatmap_png", "Download PNG"),
+                    downloadButton("download_heatmap_svg", "Download SVG")),
            
            # Beeswarm of which components are most important from a PCA
            # TODO: Add PCA as well as beeswarm
            tabPanel("PCA", sliderInput("num_components", "Choose number of components for PCA",min = 0, max = 69, value = 2 ),
-                    plotOutput("counts_pca"))
+                    plotOutput("counts_pca"),
+                    downloadButton("download_pca_jpeg", "Download JPEG"),
+                    downloadButton("download_pca_png", "Download PNG"),
+                    downloadButton("download_pca_svg", "Download SVG"))
          )
        )
     ),
@@ -236,11 +263,25 @@ ui <- fluidPage(
        mainPanel(
          tabsetPanel(
            # Show the DE Table
-           tabPanel("Sortable Table", DTOutput("DE_table")),
+           tabPanel("Sortable Table", DTOutput("DE_table"),
+                    downloadButton("download_DE_table_csv", "Download CSV"),
+                    downloadButton("download_DE_table_xlsx", "Download Excel")
+                    ),
            
            # Show the volcano plot and the corresponding table``
            tabPanel("DE Analysis",
-                    tabsetPanel(tabPanel("Volcano Plots", plotOutput("volcano")), tabPanel("Table", DTOutput("table"))))
+                    tabsetPanel(tabPanel("Volcano Plots", 
+                                         plotOutput("volcano"),
+                                         downloadButton("download_volcano_jpeg", "Download JPEG"),
+                                         downloadButton("download_volcano_png", "Download PNG"),
+                                         downloadButton("download_volcano_svg", "Download SVG")), 
+                                tabPanel("Table", 
+                                         DTOutput("table"),
+                                         downloadButton("download_DE_analysis_table_csv", "Download CSV"),
+                                         downloadButton("download_DE_analysis_table_xlsx", "Download Excel")
+                                         )
+                                )
+                    )
          )
        )
     ),
@@ -280,19 +321,15 @@ ui <- fluidPage(
                 text = "Update Table",
                 icon = icon("car-crash"),
                 width = "100%"
-              ),
-              
-              #Download button
-              # TODO: Add download button to all other tabs with tables, see if possible with graphs
-              p("Download the current filtered table:"),
-              downloadButton("EA_download", "Download Table")
-              
+              )
             ),
             ####################################################
             # EA Table Main Panel
             ####################################################
             mainPanel(
-              DTOutput("EA_Table")
+              DTOutput("EA_Table"),
+              downloadButton("download_EA_table_csv", "Download CSV"),
+              downloadButton("download_EA_table_xlsx", "Download Excel")
             )
          ),
          
@@ -316,7 +353,10 @@ ui <- fluidPage(
             # EA Top Pathways Main Panel
             ####################################################
             mainPanel(
-              plotOutput("EA_barplot")
+              plotOutput("EA_barplot"),
+              downloadButton("download_EA_barplot_jpeg", "Download JPEG"),
+              downloadButton("download_EA_barplot_png", "Download PNG"),
+              downloadButton("download_EA_barplot_svg", "Download SVG")
             ),
                   
          ),
@@ -340,7 +380,10 @@ ui <- fluidPage(
             # EA Scatter Main Panel
             ####################################################
             mainPanel(
-              plotOutput("EA_scatter_plot")
+              plotOutput("EA_scatter_plot"),
+              downloadButton("download_EA_scatter_plot_jpeg", "Download JPEG"),
+              downloadButton("download_EA_scatter_plot_png", "Download PNG"),
+              downloadButton("download_EA_scatter_plot_svg", "Download SVG")
             )
          )
        )
@@ -402,6 +445,13 @@ server <- function(input, output) {
     return(newdf)
   }
   
+  plot_numeric <- function() {
+    data <- load_samples_data()
+    vector <- input$numeric_columns
+    ggplot(data, aes(x = !!sym(vector))) +
+      geom_histogram(binwidth = 10) +  # You can adjust binwidth as needed
+      labs(title = paste("Histogram of", vector), x = vector, y = "Frequency")
+  }
   ####################################################
   # SAMPLES OUTPUTS
   ####################################################
@@ -472,7 +522,93 @@ server <- function(input, output) {
     hist(data[[vector]], main = paste("Histogram of", vector))
   })
   
+  ####################################################
+  # SAMPLES DOWNLOADS
+  ####################################################
   
+  output$download_samples_csv <- downloadHandler(
+    filename = function() {
+      paste("samples-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(load_samples_data(), file)
+    }
+  )
+  
+  output$download_samples_xlsx <- downloadHandler(
+    filename = function() {
+      paste("samples-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(load_samples_data(), file)
+    }
+  )
+  
+  output$download_filtered_samples_csv <- downloadHandler(
+    filename = function() {
+      paste("filtered-samples-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(column_filter(), file)
+    }
+  )
+  
+  output$download_filtered_samples_xlsx <- downloadHandler(
+    filename = function() {
+      paste("filtered-samples-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(column_filter(), file)
+    }
+  )
+  
+  output$download_samples_summary_csv <- downloadHandler(
+    filename = function() {
+      paste("samples-summary-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(samples_summary(load_samples_data()), file)
+    }
+  )
+  
+  output$download_samples_summary_xlsx <- downloadHandler(
+    filename = function() {
+      paste("samples-summary-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(samples_summary(load_samples_data()), file)
+    }
+  )
+  
+  # Download handlers for plots
+  output$download_plot_jpeg <- downloadHandler(
+    filename = function() {
+      paste("plot-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      
+      ggsave(file, plot = plot_numeric(), device = "jpeg")
+    }
+  )
+  
+  output$download_plot_png <- downloadHandler(
+    filename = function() {
+      paste("plot-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "png")
+    }
+  )
+  
+  output$download_plot_svg <- downloadHandler(
+    filename = function() {
+      paste("plot-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "svg")
+    }
+  )
+
   ####################################################
   # COUNTS FUNCTIONS
   ####################################################
@@ -782,7 +918,7 @@ server <- function(input, output) {
                      input$base,
                      input$highlight)
     return(p)
-  }, height = 700)
+  })
   
   output$table <- renderDT(
     datatable(draw_table(load_DE_data(),input$slider))
@@ -803,15 +939,15 @@ server <- function(input, output) {
   make_ranked_log2fc <- function(dataf) {
     new_table <- mutate(dataf, rank = rank(log2FoldChange) )%>%
       dplyr::arrange(rank) %>%
-      dplyr::select(symbol, log2FoldChange)%>%
+      dplyr::select(Gene, log2FoldChange)%>%
       dplyr::filter(is.finite(log2FoldChange))
-    new_vector <- pull(new_table, log2FoldChange, symbol)
+    new_vector <- pull(new_table, log2FoldChange, Gene)
     return(new_vector)
   }
   
   #Run FGSEA
   run_fgsea <- reactive ({
-    rnk_list <- make_ranked_log2fc(load_EA_data())
+    rnk_list <- make_ranked_log2fc(load_DE_data())
     c2_pathways <- gmtPathways("~/591_Final_Project/data/h.all.v2023.2.Hs.symbols.gmt")
     
     fgsea_results <- fgsea(c2_pathways, 
