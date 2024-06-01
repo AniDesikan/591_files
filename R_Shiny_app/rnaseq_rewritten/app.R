@@ -309,6 +309,9 @@ ui <- fluidPage(
               # TODO: Have tab automatically detect previous differential expression tab
               fileInput("EA_file", "Choose a CSV file for differential expression:"),
               
+              radioButtons("species", "Select Species:", 
+                           c("Human" = "human", "Mouse" = "mouse", "Rat" = "rat")),
+              
               # Slider to select max p adjusted for NES pathways
               sliderInput("EA_p_adj_table", "p adjusted to select pathways by:", min =-30, max = 0, value = 0),
               
@@ -800,6 +803,140 @@ server <- function(input, output) {
     counts_pca(input$counts_variance, input$counts_non_zero, input$num_components)
   })
   
+  ####################################################
+  # COUNTS DOWNLOADS
+  ####################################################
+
+  output$download_counts_filtering_csv <- downloadHandler(
+    filename = function() {
+      paste("counts-filtered-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(counts_filtering(data, input$counts_variance, input$counts_non_zero), file)
+    }
+  )
+  
+  output$download_counts_filtering_xlsx <- downloadHandler(
+    filename = function() {
+      paste("counts-filtered-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(counts_filtering(data, input$counts_variance, input$counts_non_zero), file)
+    }
+  )
+
+   output$download_plot_variance_jpeg <- downloadHandler(
+     filename = function() {
+       paste("plot-variance-", Sys.Date(), ".jpeg", sep = "")
+     },
+     content = function(file) {
+       ggsave(file, plot = counts_scatter_plot(input$counts_variance, input$counts_non_zero)[[1]], device = "jpeg")
+     }
+   )
+   
+   output$download_plot_variance_png <- downloadHandler(
+     filename = function() {
+       paste("plot-variance-", Sys.Date(), ".png", sep = "")
+     },
+     content = function(file) {
+       ggsave(file, plot = counts_scatter_plot(input$counts_variance, input$counts_non_zero)[[1]], device = "png")
+     }
+   )
+   
+   output$download_plot_variance_svg <- downloadHandler(
+     filename = function() {
+       paste("plot-variance-", Sys.Date(), ".svg", sep = "")
+     },
+     content = function(file) {
+       ggsave(file, plot = counts_scatter_plot(input$counts_variance, input$counts_non_zero)[[1]], device = "svg")
+     }
+   )
+
+
+  output$download_plot_zeros_jpeg <- downloadHandler(
+    filename = function() {
+      paste("plot-zeros-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      
+      ggsave(file, plot = plot_numeric(), device = "jpeg")
+    }
+  )
+  
+  output$download_plot_zeros_png <- downloadHandler(
+    filename = function() {
+      paste("plot-zeros-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "png")
+    }
+  )
+  
+  output$download_plot_zeros_svg <- downloadHandler(
+    filename = function() {
+      paste("plot-zeros-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "svg")
+    }
+  )
+
+  output$download_heatmap_jpeg <- downloadHandler(
+    filename = function() {
+      paste("heatmap-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      
+      ggsave(file, plot = plot_numeric(), device = "jpeg")
+    }
+  )
+  
+  output$download_heatmap_png <- downloadHandler(
+    filename = function() {
+      paste("heatmap-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "png")
+    }
+  )
+  
+  output$download_heatmap_svg <- downloadHandler(
+    filename = function() {
+      paste("heatmap-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "svg")
+    }
+  )
+
+  
+  output$download_pca_jpeg <- downloadHandler(
+    filename = function() {
+      paste("pca-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      
+      ggsave(file, plot = plot_numeric(), device = "jpeg")
+    }
+  )
+  
+  output$download_pca_png <- downloadHandler(
+    filename = function() {
+      paste("pca-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "png")
+    }
+  )
+  
+  output$download_pca_svg <- downloadHandler(
+    filename = function() {
+      paste("pca-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave(file, plot = plot_numeric(), device = "svg")
+    }
+  )
   
   ####################################################
   # DE FUNCTIONS
@@ -923,6 +1060,50 @@ server <- function(input, output) {
   output$table <- renderDT(
     datatable(draw_table(load_DE_data(),input$slider))
   )
+  
+  ####################################################
+  # DE DOWNLOADS
+  ####################################################
+  
+  
+  output$download_DE_table_csv <- downloadHandler(
+    filename = function() {
+      paste("differential_expression-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(load_DE_data(), file)
+    }
+  )
+  
+  output$download_DE_table_xlsx <- downloadHandler(
+    filename = function() {
+      paste("differential-expression-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(load_DE_data(), file)
+    }
+  )
+
+
+  
+output$download_DE_analysis_csv <- downloadHandler(
+  filename = function() {
+    paste("DE-analysis-", Sys.Date(), ".csv", sep = "")
+  },
+  content = function(file) {
+    write.csv(draw_table(load_DE_data(),input$slider), file)
+  }
+)
+
+output$download_DE_analysis_xlsx <- downloadHandler(
+  filename = function() {
+    paste("DE-analysis-", Sys.Date(), ".xlsx", sep = "")
+  },
+  content = function(file) {
+    writexl::write_xlsx(draw_table(load_DE_data(),input$slider), file)
+  }
+)            
+                       
   ####################################################
   # EA FUNCTIONS
   ####################################################
@@ -947,16 +1128,22 @@ server <- function(input, output) {
   
   #Run FGSEA
   run_fgsea <- reactive ({
-    rnk_list <- make_ranked_log2fc(load_DE_data())
-    c2_pathways <- gmtPathways("~/591_Final_Project/data/h.all.v2023.2.Hs.symbols.gmt")
-    
-    fgsea_results <- fgsea(c2_pathways, 
-                           rnk_list, 
-                           minSize=15, 
-                           maxSize=500) %>% 
-      as_tibble()
-    
-    return(fgsea_results)
+    run_fgsea <- reactive ({
+      species <- input$species
+      gmt_pathways <- if (species == "human") {
+        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Homo_sapiens.gmt"
+      } else if (species == "mouse") {
+        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Mus_musculus.gmt"
+      } else if (species == "rat") {
+        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Rattus_norvegicus.gmt"
+      }
+
+      rnk_list <- make_ranked_log2fc(load_DE_data())
+      fgsea_results <- fgsea(gmt_pathways, rnk_list, minSize=15, maxSize=500) %>% 
+        as_tibble()
+      
+      return(fgsea_results)
+    })
   })
   
   fgsea_filter <- reactive ({
@@ -996,7 +1183,7 @@ server <- function(input, output) {
   
   EA_Table <-
     function(p_adj, select) {
-      ea_table <- run_fgsea()
+      ea_table <- run_fgsea()()
       if(select == "positive"){
         ea_table <- dplyr::filter(ea_table, NES > 0)
       } 
@@ -1008,7 +1195,7 @@ server <- function(input, output) {
     }
   
   scatter_plot_data <- reactive({
-    ea_table <- run_fgsea()
+    ea_table <- run_fgsea()()
     
     # Filter gene sets below p-value threshold
     ea_table <- dplyr::filter(ea_table, padj < 10^(-input$EA_p_adj_plot))
@@ -1042,7 +1229,106 @@ server <- function(input, output) {
         y = "-log10 Adjusted p-value"
       )
   })
+  
+  ####################################################
+  # EA DOWNLOADS
+  ####################################################
+
+  output$download_EA_table_csv <- downloadHandler(
+    filename = function() {
+      paste("enrichment_analysis-", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(EA_Table(input$EA_p_adj_table, input$EA_NES_select), file)
+    }
+  )
+  
+  output$download_EA_table_xlsx <- downloadHandler(
+    filename = function() {
+      paste("enrichment_analysis-", Sys.Date(), ".xlsx", sep = "")
+    },
+    content = function(file) {
+      writexl::write_xlsx(EA_Table(input$EA_p_adj_table, input$EA_NES_select), file)
+    }
+  )
+  
+  output$download_EA_barplot_jpeg <- downloadHandler(
+    filename = function() {
+      paste("EA_barplot-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_barplot.jpeg", plot = EA_barplot(run_fgsea(), input$EA_p_adj), device = "jpeg")
+    }
+  )
+  
+  output$download_EA_barplot_png <- downloadHandler(
+    filename = function() {
+      paste("EA_barplot-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_barplot.png", plot = EA_barplot(run_fgsea(), input$EA_p_adj), device = "png")
+    }
+  )
+  
+  output$download_EA_barplot_svg <- downloadHandler(
+    filename = function() {
+      paste("EA_barplot-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_barplot.svg", plot = EA_barplot(run_fgsea(), input$EA_p_adj), device = "svg")
+    }
+  )
+  
+  output$download_EA_scatter_plot_jpeg <- downloadHandler(
+    filename = function() {
+      paste("EA_scatter_plot-", Sys.Date(), ".jpeg", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_scatter_plot.jpeg", plot = ggplot(scatter_plot_data(), aes(x = NES, y = -log10(padj), color = factor(padj < 10^(input$EA_p_adj_plot)))) + 
+               geom_point(alpha = 0.7) +
+               scale_color_manual(values = c("TRUE" = "grey", "FALSE" = "blue")) +
+               labs(
+                 title = "Scatter Plot of NES vs. -log10 Adjusted p-value",
+                 x = "Normalized Enrichment Score (NES)",
+                 y = "-log10 Adjusted p-value"
+               ), device = "jpeg")
+    }
+  )
+  
+  output$download_EA_scatter_plot_png <- downloadHandler(
+    filename = function() {
+      paste("EA_scatter_plot-", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_scatter_plot.png", plot = ggplot(scatter_plot_data(), aes(x = NES, y = -log10(padj), color = factor(padj < 10^(input$EA_p_adj_plot)))) + 
+               geom_point(alpha = 0.7) +
+               scale_color_manual(values = c("TRUE" = "grey", "FALSE" = "blue")) +
+               labs(
+                 title = "Scatter Plot of NES vs. -log10 Adjusted p-value",
+                 x = "Normalized Enrichment Score (NES)",
+                 y = "-log10 Adjusted p-value"
+               ), device = "png")
+    }
+  )
+  
+  output$download_EA_scatter_plot_svg <- downloadHandler(
+    filename = function() {
+      paste("EA_scatter_plot-", Sys.Date(), ".svg", sep = "")
+    },
+    content = function(file) {
+      ggsave("EA_scatter_plot.svg", plot = ggplot(scatter_plot_data(), aes(x = NES, y = -log10(padj), color = factor(padj < 10^(input$EA_p_adj_plot)))) + 
+               geom_point(alpha = 0.7) +
+               scale_color_manual(values = c("TRUE" = "grey", "FALSE" = "blue")) +
+               labs(
+                 title = "Scatter Plot of NES vs. -log10 Adjusted p-value",
+                 x = "Normalized Enrichment Score (NES)",
+                 y = "-log10 Adjusted p-value"
+               ), device = "svg")
+    }
+  )
 }
+
+
 ###################################################
 #                 RUN APP                         #
 ###################################################
