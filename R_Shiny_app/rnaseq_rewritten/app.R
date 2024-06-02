@@ -22,6 +22,7 @@ library(fgsea)
 library(beeswarm)
 library(DESeq2)
 library(data.table)
+library(GSEABase)
 library(rlang)
 
 # Change this number in order to change the max upload size for files
@@ -48,10 +49,12 @@ deseq_choices <-
 
 ui <- fluidPage(
   # Title 
-  titlePanel("Plotting of Normalized Counts Data"),
-  
+  titlePanel("Differential Expression Pipeline"),
+  helpText("Insert metadata and raw counts data into the data preprocessing tab in order to perform DEseq2, or else input DEseq2 dataframe into DE tab for analysis."),
   # Beginning of all tabs
   tabsetPanel(
+    tabPanel("Data Preprocessing",
+    tabsetPanel(
     ####################################################
     # SAMPLES TAB: where you look at metadata
     ####################################################
@@ -60,14 +63,18 @@ ui <- fluidPage(
       # Samples Sidebar
       ####################################################
        sidebarPanel(
+         helpText("Upload a CSV file containing sample information. The file should have a header row with column names."),
          fileInput("samples_file", "Choose a CSV file for sample information exploration:"),
          
          #selectInput("numeric_columns", "Select Numeric Column", choices =c(
          #   "age_of_death","AvgSpotLen","mrna.seq_reads","pmi","RIN", "age_of_onset", "cag", "duration", "h.v_cortical_score", "h.v_striatal_score", "vonsattel_grade")
          #), # TODO: Make these choices not hardcoded, have the same UI_output as below 
-         uiOutput("numeric_columns"),
-         
+
+         helpText("Select columns to perform DEseq2 analysis on. Make sure that the first column is the id column which has the same sample names as the RNA sequencing data. The other columns will be used as the basis for the differential expression."),
          uiOutput("samples_columns"), # dropdown menu that shows all of the columns in the csv
+         
+         helpText("Select a numeric column to explore. This will be only be used for the histogram plot."),
+         uiOutput("numeric_columns"),
          
          submitButton(
            text = "Submit",
@@ -84,18 +91,21 @@ ui <- fluidPage(
            
            # Table tab has a Dataframe output of the samples table given
            tabPanel("Table", 
+                    helpText("This is the full input table. Move to the next tab to see which columns are selected."),
                     DTOutput("samples_table"),
                     downloadButton("download_samples_csv", "Download CSV"),
                     downloadButton("download_samples_xlsx", "Download Excel")),
            
            # Select columns gives the table with the columns that you selected 
-           tabPanel("Select Columns", 
+           tabPanel("Selected Columns", 
+                    helpText("These are the columns that are selected, to have differential expression performed on them."),
                     DTOutput("filtered_samples_table"),
                     downloadButton("download_filtered_samples_csv", "Download CSV"),
                     downloadButton("download_filtered_samples_xlsx", "Download Excel")),
            
            # Summary tab has a summary of all the selected columns, their type (int, string, etc.) and most common entry
            tabPanel("Summary", 
+                    helpText("This is a summary of the full metadata table, with the names of each column, what type they are, and what the most common entry in the column is."),
                     tableOutput("samples_summary"),
                     downloadButton("download_samples_summary_csv", "Download CSV"),
                     downloadButton("download_samples_summary_xlsx", "Download Excel")),
@@ -103,6 +113,7 @@ ui <- fluidPage(
            # Plots numeric column vs selected column
            # TODO: Currently the numeric columns are hardcoded so you can't select anything else
            tabPanel("Plots", 
+                    helpText("This is a histogram of the numeric column selected on the sidebar."),
                     plotOutput("selected_plot"),
                     downloadButton("download_plot_jpeg", "Download JPEG"),
                     downloadButton("download_plot_png", "Download PNG"),
@@ -127,9 +138,11 @@ ui <- fluidPage(
          fileInput("counts_file", "Choose a CSV file for counts matrix exploration:"),
          
          # Choose how much variance you want the row to have to be selected
+         helpText("Choose how much variance you want each selected gene to have."),
          sliderInput("counts_variance", "Select the percentile of variance:", min = 0, max = 100, value = 0),
          
          # Choose how many non zero samples you want the row to have to be selected
+         helpText("Choose how many non-zero samples you want each selected gene to have."),
          sliderInput("counts_non_zero", "Select the number of samples that are non-zero to be included:", min = 0, max = 100, value = 0),
          
          # Submit Button
@@ -146,13 +159,17 @@ ui <- fluidPage(
          tabsetPanel(
            
            # Shows the results of filtering from the sidebar
+           
            # TODO: Show DTOutput of the filtered table underneath the counts filtering table
            tabPanel("Filtering Effect", tableOutput("counts_filtering_table"),
+                    helpText("Shows the results of filtering the counts table with the variables from the sidebar."),
                     downloadButton("download_counts_filtering_csv", "Download CSV"),
                     downloadButton("download_counts_filtering_xlsx", "Download Excel")),
            
            # Shows how many samples actually pass the filters and where they are in terms of variance and # of zeros
+           
            tabPanel("Diagnostic Scatter Plots",
+                    helpText("Shows how many samples actually pass the filters and where they are in terms of variance and # of zeros."),
                     plotOutput("plot_variance"),
                     downloadButton("download_plot_variance_jpeg", "Download JPEG"),
                     downloadButton("download_plot_variance_png", "Download PNG"),
@@ -163,20 +180,28 @@ ui <- fluidPage(
                     downloadButton("download_plot_zeros_svg", "Download SVG")),
            
            # Shows Samples vs Genes heatmap
+           
            tabPanel("Clustered Heatmap", plotOutput("counts_heatmap"),
+                    helpText("Shows Samples vs Genes heatmap"),
                     downloadButton("download_heatmap_jpeg", "Download JPEG"),
                     downloadButton("download_heatmap_png", "Download PNG"),
                     downloadButton("download_heatmap_svg", "Download SVG")),
            
            # Beeswarm of which components are most important from a PCA
+           
            # TODO: Add PCA as well as beeswarm
-           tabPanel("PCA", sliderInput("num_components", "Choose number of components for PCA",min = 0, max = 69, value = 2 ),
+           tabPanel("PCA", 
+                    sliderInput("num_components", "Choose number of components for PCA",min = 0, max = 69, value = 2),
+                    helpText("Beeswarm of which components are most important from a PCA"),
                     plotOutput("counts_pca"),
                     downloadButton("download_pca_jpeg", "Download JPEG"),
                     downloadButton("download_pca_png", "Download PNG"),
-                    downloadButton("download_pca_svg", "Download SVG"))
+                    downloadButton("download_pca_svg", "Download SVG")
          )
        )
+    )
+    )
+    )
     ),
     
     ####################################################
@@ -200,11 +225,12 @@ ui <- fluidPage(
        sidebarPanel(
          # Insert DE CSV file
          # TODO: Make it so that there isn't an error when this is empty
-         fileInput("DE_file", "Choose a CSV file for differential expression:"),
+         
          
          # Radio buttons where the user can choose whether they want to use the new data or the old data
          # TODO: Automatically use old data unless they want to use new data
          # Possibly hide file input unless no is checked on this radio button?
+         helpText("If you would like to insert your own DEseq2 data, please insert click the no button and insert the file below"),
          radioButtons(
            inputId = "deseq",
            label = "Run Deseq2 on the filtered counts data from previous data?",
@@ -212,10 +238,13 @@ ui <- fluidPage(
            selected = "yes"
          ),
          
+         fileInput("DE_file", "Choose a CSV file for differential expression:"),
          # The following are choices for the volcano plots
          # deseq_choices are at the top 
          # TODO: Make hovering the points give you the name of the gene
          # TODO: Make clicking the points take you to the uniprot page for the gene
+         
+         helpText("These are options to customize the volcano plot."),
          radioButtons(
            inputId = "x_axis",
            label = "Choose the column for the x-axis",
@@ -264,6 +293,7 @@ ui <- fluidPage(
          tabsetPanel(
            # Show the DE Table
            tabPanel("Sortable Table", DTOutput("DE_table"),
+                    helpText("Sortable table of differential expression results. This may take a minute to load."),
                     downloadButton("download_DE_table_csv", "Download CSV"),
                     downloadButton("download_DE_table_xlsx", "Download Excel")
                     ),
@@ -307,15 +337,18 @@ ui <- fluidPage(
             sidebarPanel(
               # Insert Differential Expression CSV
               # TODO: Have tab automatically detect previous differential expression tab
+              helpText("Insert the differential expression dataset to be analyzed"),
               fileInput("EA_file", "Choose a CSV file for differential expression:"),
               
+              helpText("Choose which species' gmt file to use"),
               radioButtons("species", "Select Species:", 
-                           c("Human" = "human", "Mouse" = "mouse", "Rat" = "rat")),
+                           c("Human" = "human", "Mouse" = "mouse")),
               
-              # Slider to select max p adjusted for NES pathways
+              
+              helpText("Slider to select max p adjusted for NES pathways"),
               sliderInput("EA_p_adj_table", "p adjusted to select pathways by:", min =-30, max = 0, value = 0),
               
-              # Select whether you want negative, positive or all pathways
+              helpText("Select whether you want negative, positive or all pathways"),
               radioButtons("EA_NES_select", "Choose which NES pathways to select:",
                            c("positive", "negative", "all")),
               
@@ -345,6 +378,7 @@ ui <- fluidPage(
             ####################################################
             sidebarPanel(
               fileInput("EA_file", "Choose a CSV file for differential expression:"),
+              helpText("Adjust which pathways are selected by changing the log 10 p adjusted value."),
               sliderInput("EA_p_adj", "p adjusted to select pathways by:", min = -30, max = 0, value = -10),
               submitButton(
                 text = "Update Table",
@@ -384,6 +418,7 @@ ui <- fluidPage(
             ####################################################
             mainPanel(
               plotOutput("EA_scatter_plot"),
+              helpText("This is a scatter plot showing the normalized enrichment score of different pathways vs their adjusted p values."),
               downloadButton("download_EA_scatter_plot_jpeg", "Download JPEG"),
               downloadButton("download_EA_scatter_plot_png", "Download PNG"),
               downloadButton("download_EA_scatter_plot_svg", "Download SVG")
@@ -428,7 +463,7 @@ server <- function(input, output) {
   # Function to filter the data for the input sample columns
   column_filter <- reactive({
     selected_data <- load_samples_data() %>%
-      select(input$samples_columns)
+      dplyr::select(input$samples_columns)
     return(selected_data)
   })
   
@@ -462,9 +497,6 @@ server <- function(input, output) {
   # Display the columns of the dataframe in the dropdown so the user can select them
   output$samples_columns <- renderUI({
     data <- load_samples_data()
-    if (is.null(data)) {
-      return(NULL)
-    }
     choices <- colnames(data)
     selectInput("samples_columns", "Select Columns", choices, multiple = TRUE)
   })
@@ -472,9 +504,6 @@ server <- function(input, output) {
   # Display the numeric columns of the dataframe in the dropdown
   output$numeric_columns <- renderUI({
     data <- load_samples_data()
-    if (is.null(data)) {
-      return(NULL)
-    }
     numeric_cols <- colnames(data)[sapply(data, is.numeric)]
     selectInput("numeric_columns", "Select Numeric Columns", numeric_cols, multiple = TRUE)
   })
@@ -507,7 +536,7 @@ server <- function(input, output) {
     if (is.null(data) || is.null(input$samples_columns)) {
       return(NULL)
     }
-    selected_data <- data %>% select(input$samples_columns)
+    selected_data <-dplyr::select(data, input$samples_columns)
     datatable(column_filter(), options = list(
       pageLength = 10,       # Number of rows to display per page
       lengthMenu = c(10, 25, 50, 100), # Dropdown menu for number of rows to display
@@ -622,14 +651,17 @@ server <- function(input, output) {
     return(as.tibble(new_file))
   })
   
-  counts_filtering <- function(variance, zero) {
+  counts_filtering <- function(variance, non_zero) {
     dataf <- load_counts_data()
     
     row_variances <- rowVars(as.matrix(dataf[,-1]), na.rm = TRUE)
     
     # Filter the data based on variance threshold
     filtered_counts <- dplyr::filter(dataf, row_variances >= variance)
-    filtered_counts <- dplyr::filter(filtered_counts, rowSums(filtered_counts == 0) >= zero)
+    
+    # Filter out genes with too few non-zero samples
+    filtered_counts <- dplyr::filter(filtered_counts, rowSums(filtered_counts != 0) >= non_zero)
+    
     return(filtered_counts)
   }
   
@@ -1109,41 +1141,37 @@ output$download_DE_analysis_xlsx <- downloadHandler(
   ####################################################
   
   load_EA_data <- reactive({
-    con <- gzfile(input$EA_file$datapath, "rt")
-    # Read the data using read.table
-    new_file <- read.table(con, header = TRUE, sep = "\t")
-    print(new_file)
-    return(as.tibble(new_file))
+    req(input$EA_file)
+    new_file <- read.csv(input$EA_file$datapath)
+    print(head(new_file))
+    return(as_tibble(new_file))
   })
   
-  # Get list of diff expressed genes
   make_ranked_log2fc <- function(dataf) {
-    new_table <- mutate(dataf, rank = rank(log2FoldChange) )%>%
-      dplyr::arrange(rank) %>%
-      dplyr::select(Gene, log2FoldChange)%>%
-      dplyr::filter(is.finite(log2FoldChange))
+    new_table <- dataf %>%
+      mutate(rank = rank(log2FoldChange)) %>%
+      arrange(rank) %>%
+      dplyr::select(Gene, log2FoldChange) %>%
+      filter(is.finite(log2FoldChange))
     new_vector <- pull(new_table, log2FoldChange, Gene)
     return(new_vector)
   }
   
-  #Run FGSEA
-  run_fgsea <- reactive ({
-    run_fgsea <- reactive ({
-      species <- input$species
-      gmt_pathways <- if (species == "human") {
-        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Homo_sapiens.gmt"
-      } else if (species == "mouse") {
-        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Mus_musculus.gmt"
-      } else if (species == "rat") {
-        "~rnaseq_rewritten/gmt_files/wikipathways-20240510-gmt-Rattus_norvegicus.gmt"
-      }
-
-      rnk_list <- make_ranked_log2fc(load_DE_data())
-      fgsea_results <- fgsea(gmt_pathways, rnk_list, minSize=15, maxSize=500) %>% 
-        as_tibble()
-      
-      return(fgsea_results)
-    })
+  run_fgsea <- reactive({
+    req(input$species)
+    species <- input$species
+    gmt_pathways <- if (species == "human") {
+      gmtPathways("~/Documents/GitHub/591_files/R_Shiny_app/rnaseq_rewritten/gmt_files/h.all.v2023.2.Hs.symbols.gmt.txt")
+    } else if (species == "mouse") {
+      gmtPathways("~/Documents/GitHub/591_files/R_Shiny_app/rnaseq_rewritten/gmt_files/mh.all.v2023.2.Mm.symbols.gmt.txt")
+    }
+    
+    rnk_list <- make_ranked_log2fc(load_EA_data())
+    print(head(rnk_list))
+    fgsea_results <- fgsea(pathways = gmt_pathways, stats = rnk_list, minSize = 15, maxSize = 500) %>%
+      as_tibble()
+    print(head(fgsea_results))
+    return(fgsea_results)
   })
   
   fgsea_filter <- reactive ({
@@ -1183,7 +1211,7 @@ output$download_DE_analysis_xlsx <- downloadHandler(
   
   EA_Table <-
     function(p_adj, select) {
-      ea_table <- run_fgsea()()
+      ea_table <- run_fgsea()
       if(select == "positive"){
         ea_table <- dplyr::filter(ea_table, NES > 0)
       } 
@@ -1195,7 +1223,7 @@ output$download_DE_analysis_xlsx <- downloadHandler(
     }
   
   scatter_plot_data <- reactive({
-    ea_table <- run_fgsea()()
+    ea_table <- run_fgsea()
     
     # Filter gene sets below p-value threshold
     ea_table <- dplyr::filter(ea_table, padj < 10^(-input$EA_p_adj_plot))

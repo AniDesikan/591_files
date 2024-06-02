@@ -1,0 +1,12 @@
+name: rnaseq_rewritten
+title: rnaseq_rewritten
+username: anirudh-desikan
+account: anirudh-desikan
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12109866
+bundleId:
+url: https://anirudh-desikan.shinyapps.io/rnaseq_rewritten/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE

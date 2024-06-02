@@ -1,0 +1,12 @@
+name: Differential_Expression_Pipeline
+title: Differential_Expression_Pipeline
+username: anirudh-desikan
+account: anirudh-desikan
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 12109872
+bundleId: 8688735
+url: https://anirudh-desikan.shinyapps.io/Differential_Expression_Pipeline/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
